@@ -33,7 +33,6 @@ def get_product_images_list(product):
 
 
 def get_product_card(product):
-
     return {
         'id': product.id,
         'category': product.category.id,
@@ -62,7 +61,6 @@ def popular_products_view(request):
     res = []
 
     for product in Product.objects.all():
-
         tmp = get_product_card(product)
 
         res.append(tmp)
@@ -134,7 +132,6 @@ def basket_view(request):
         cart = Cart.objects.get_or_create(cartUser=request.user)[0]
         cart.add_product(product.id, count)
 
-
         res = get_product_card(product=product)
 
         return JsonResponse(res, safe=False)
@@ -192,8 +189,35 @@ def product_reviews_view(request, product_id):
             return JsonResponse(reviews, safe=False)
 
 
-def reviews_sorted():
-    products = Product.objects.all()
+def get_sorted_products(sort_type, sort, products_list):
+    if sort == 'price':
+        if sort_type == 'inc':
+            return [get_product_card(product) for product in
+                    products_list.order_by('price')]
+        elif sort_type == 'dec':
+            return [get_product_card(product) for product in
+                    products_list.order_by('-price')]
+    elif sort == 'rating':
+        if sort_type == 'inc':
+            return [get_product_card(product) for product in
+                    products_list.order_by('rating')]
+        elif sort_type == 'dec':
+            return [get_product_card(product) for product in
+                    products_list.order_by('-rating')]
+    elif sort == 'date':
+        if sort_type == 'inc':
+            return [get_product_card(product) for product in
+                    products_list.order_by('date')]
+        elif sort_type == 'dec':
+            return [get_product_card(product) for product in
+                    products_list.order_by('-date')]
+    elif sort == 'reviews':
+        if sort_type == 'inc':
+            return [get_product_card(product) for product in
+                    products_list.order_by('reviews_count')]
+        elif sort_type == 'dec':
+            return [get_product_card(product) for product in
+                    products_list.order_by('-reviews_count')]
 
 
 def catalog_view(request):
@@ -230,65 +254,47 @@ def catalog_view(request):
             }
     """
     if request.method == 'GET':
-        filter = {}
+        products_filter = {}
         for key, value in request.GET.items():
             if 'filter' in key:
                 if 'minPrice' in key or 'maxPrice' in key:
-                    filter[key.split('[')[1].split(']')[0]] = float(value)
-                elif 'freeDelivery' in key or 'available' in key:
-                    filter[key.split('[')[1].split(']')[0]] = bool(value)
+                    products_filter[key.split('[')[1].split(']')[0]] = float(value)
+                elif 'freeDelivery' in key:
+                    # products_filter[key.split('[')[1].split(']')[0]] = False if value == 'false' else True
+                    x = 1
+                    if value == 'false':
+                        products_filter[key.split('[')[1].split(']')[0]] = False
+                    else:
+                        products_filter[key.split('[')[1].split(']')[0]] = True
                 else:
-                    filter[key.split('[')[1].split(']')[0]] = value
-        currentPage = int(request.GET.get('currentPage'))
+                    products_filter[key.split('[')[1].split(']')[0]] = value
+
+        current_page = int(request.GET.get('currentPage'))
         category = request.GET.get('category')
         sort = request.GET.get('sort')  # rating, price, reviews, date
-        sortType = request.GET.get('sortType')  # dec, inc
+        sort_type = request.GET.get('sortType')  # dec, inc
         limit = int(request.GET.get('limit'))
 
-        res = {}
+        # 1. Отфильтровать товары.
+        products_list = Product.objects.all()
+        # TODO Реализовать поле "В наличии"
+        filtered_list = products_list.filter(price__gte=products_filter.get('minPrice'),
+                                             price__lt=products_filter.get('maxPrice'),
+                                             delivery__exact=products_filter.get('freeDelivery'))
 
-
-        start = (currentPage - 1) * limit + 1
+        # 2. Разделить отфильтрованный список по страницам
+        start = (current_page - 1) * limit
         end = start + limit
-        last_page = math.ceil(len(Product.objects.all()) / limit)
+        last_page = math.ceil(len(filtered_list) / limit)
 
-        res['currentPage'] = currentPage
-        res['lastPage'] = last_page
+        # 3. Отсортировать отфильтрованный список
+        sorted_list = get_sorted_products(sort_type, sort, filtered_list)
 
+        # 4. Разбить список постранично
+        sorted_list = sorted_list[start:end]
 
-        if sort == 'price':
-            if sortType == 'inc':
-                res['items'] = [get_product_card(product) for product in
-                                Product.objects.order_by('price')[start:end]]
-            elif sortType == 'dec':
-                res['items'] = [get_product_card(product) for product in
-                                Product.objects.order_by('-price')[start:end]]
-        elif sort == 'rating':
-            if sortType == 'inc':
-                res['items'] = [get_product_card(product) for product in
-                                Product.objects.order_by('rating')[start:end]]
-            elif sortType == 'dec':
-                res['items'] = [get_product_card(product) for product in
-                                Product.objects.order_by('-rating')[start:end]]
-        elif sort == 'date':
-            if sortType == 'inc':
-                res['items'] = [get_product_card(product) for product in
-                                Product.objects.order_by('date')[start:end]]
-            elif sortType == 'dec':
-                res['items'] = [get_product_card(product) for product in
-                                Product.objects.order_by('-date')[start:end]]
-        elif sort == 'reviews':
+        # 5. Подготовить результаты
 
-            if sortType == 'inc':
-                res['items'] = [get_product_card(product) for product in
-                                Product.objects.order_by('reviews_count')]
-                x = 1
+        res = {'currentPage': current_page, 'lastPage': last_page, 'items': sorted_list}
 
-
-            elif sortType == 'dec':
-                res['items'] = [get_product_card(product) for product in
-                                Product.objects.order_by('-reviews_count')]
-                x = 1
-
-        x = 1
         return JsonResponse(res, safe=False)
