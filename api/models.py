@@ -107,6 +107,7 @@ class Product(models.Model):
     desc = models.TextField(max_length=3000, null=True)
     specs = models.ManyToManyField(ProductSpecification, blank=True)
     delivery = models.BooleanField(default=False)
+    available = models.BooleanField(default=True)
     reviews = models.ManyToManyField(ProductReview, blank=True)
     reviews_count = models.IntegerField(default=0, blank=True)
 

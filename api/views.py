@@ -259,7 +259,7 @@ def catalog_view(request):
             if 'filter' in key:
                 if 'minPrice' in key or 'maxPrice' in key:
                     products_filter[key.split('[')[1].split(']')[0]] = float(value)
-                elif 'freeDelivery' in key:
+                elif 'freeDelivery' in key or 'available' in key:
                     # products_filter[key.split('[')[1].split(']')[0]] = False if value == 'false' else True
                     x = 1
                     if value == 'false':
@@ -277,10 +277,17 @@ def catalog_view(request):
 
         # 1. Отфильтровать товары.
         products_list = Product.objects.all()
-        # TODO Реализовать поле "В наличии"
-        filtered_list = products_list.filter(price__gte=products_filter.get('minPrice'),
-                                             price__lt=products_filter.get('maxPrice'),
-                                             delivery__exact=products_filter.get('freeDelivery'))
+        # когда available=false, хочу, чтоб не фильтровалось по этому полю
+        # Чтобы выводились не только продукты "в наличии", но и те, которых нету
+        if products_filter.get('available'):
+            filtered_list = products_list.filter(price__gte=products_filter.get('minPrice'),
+                                                 price__lt=products_filter.get('maxPrice'),
+                                                 delivery__exact=products_filter.get('freeDelivery'),
+                                                 available__exact=products_filter.get('available'))
+        else:
+            filtered_list = products_list.filter(price__gte=products_filter.get('minPrice'),
+                                                 price__lt=products_filter.get('maxPrice'),
+                                                 delivery__exact=products_filter.get('freeDelivery'))
 
         # 2. Разделить отфильтрованный список по страницам
         start = (current_page - 1) * limit
