@@ -373,12 +373,26 @@ def specific_order_view(request, order_id):
         return JsonResponse(res, safe=False)
 
     elif request.method == 'POST':
+        # Сохранить заказ
+        data = json.loads(request.body.decode('utf-8'))
+
+        order = Order.objects.get(pk=order_id)
+
+        try:
+            order.phone = int(data.get('phone'))
+        except ValueError:
+            order.phone = 9999999999
+
+        order.delivery_type = data.get('deliveryType')
+        order.city = data.get('city')
+        order.address = data.get('address')
+        order.payment_types = data.get('paymentType')
+
+        order.save()
+
         return JsonResponse({'orderId': order_id}, safe=False)
 
 
 def payment_view(request, order_id):
-    x = 1
     if request.method == 'POST':
-        data = json.loads(request.body.decode('utf-8'))
-
         return JsonResponse({}, safe=False)

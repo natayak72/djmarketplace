@@ -148,12 +148,12 @@ class Cart(models.Model):
         pass
 
 
-delivery_types = [('basic_delivery', 'Доставка'),
-                  ('express_delivery', 'Экспресс-доставка'),
+delivery_types = [('ordinary', 'Доставка'),
+                  ('express', 'Экспресс-доставка'),
                   ]
 
-payment_types = [('card_online', 'Онлайн картой'),
-                 ('any_account', 'Онлайн со случайного чужого счёта'),
+payment_types = [('online', 'Онлайн картой'),
+                 ('someone', 'Онлайн со случайного чужого счёта'),
                  ]
 
 statuses = [('not_paid', 'Не оплачен'),
