@@ -340,29 +340,45 @@ def catalog_view(request):
 
 
 def orders_view(request):
+    print('orders_view')
     if request.method == 'POST':
         data = json.loads(request.body.decode('utf-8'))
-        x = 1
 
-        # Создать заказ
-        # Заполнить:
-        # 1. Пользователя
-        # 2. Товары
-        # 3. Общую стоимость продуктов
-
-        # TODO ПОЧЕМУ-ТО СОЗДАЁТСЯ ДВА ЗАКАЗА. ПОПРОБОВАТЬ НЕ ФОРЕЙГН KEY НА ПОЛЬЗОВАТЕЛЯ, А ID КАК INTEGERFIELD
         new_order = Order.objects.create(user=request.user)
 
-        new_product = Product.objects.create(title='test', slug='test')
-        x = 1
         for product in data:
-            x = 1
             product_to_add_id = product.get('id')
             product_to_add = Product.objects.get(pk=product_to_add_id)
             new_order.products.add(product_to_add)
             new_order.total_cost += product_to_add.price * product_to_add.count
-            # new_order.save()
 
+            new_order.save()
+        return JsonResponse({'orderId': new_order.pk})
+
+
+def specific_order_view(request, order_id):
+    print('specific_order_view')
+    x = 1
+    if request.method == 'GET':
+        order = Order.objects.get(pk=order_id)
+        res = {'id': order.id,
+               'createdAt': order.creationDate,
+               'fullName': order.user.username,
+               'email': order.user.email,
+               'totalCost': order.total_cost,
+               'products': [get_product_card(product) for product in order.products.all()]}
 
         x = 1
 
+        return JsonResponse(res, safe=False)
+
+    elif request.method == 'POST':
+        return JsonResponse({'orderId': order_id}, safe=False)
+
+
+def payment_view(request, order_id):
+    x = 1
+    if request.method == 'POST':
+        data = json.loads(request.body.decode('utf-8'))
+
+        return JsonResponse({}, safe=False)

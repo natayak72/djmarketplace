@@ -163,7 +163,7 @@ statuses = [('not_paid', 'Не оплачен'),
 
 
 class Order(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, blank=True, null=True)
     creationDate = models.DateTimeField(auto_now_add=True)
     # Маска подстановки - +7() ___ - __ - __, храниться должно в виде 10 цифр без кода страны
     phone = models.CharField(max_length=20, help_text='Номер телефона', blank=True)  # TODO валидация
@@ -176,5 +176,5 @@ class Order(models.Model):
     products = models.ManyToManyField(Product, blank=True)
 
     def __str__(self):
-        return f'Заказ {self.user.username} на {self.total_cost}'
+        return f'Заказ от {self.user} на {self.total_cost}'
 

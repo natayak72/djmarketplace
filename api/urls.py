@@ -10,5 +10,7 @@ urlpatterns = [
     path('product/<int:product_id>/reviews/', product_reviews_view),
     path('catalog/', catalog_view),
     path('basket/', basket_view),
-    path('orders/', orders_view)
+    path('orders/<int:order_id>/', specific_order_view),
+    path('orders/', orders_view),
+    path('payment/<int:order_id>/', payment_view),
 ]
