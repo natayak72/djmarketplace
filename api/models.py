@@ -21,7 +21,6 @@ class Sale(models.Model):
     dateFrom = models.DateTimeField(auto_now_add=True)
     dateTo = models.DateTimeField(auto_now_add=True)
 
-
     def __str__(self):
         return self.title
 
@@ -72,18 +71,15 @@ class ProductReview(models.Model):
     def __str__(self):
         return f'{self.author} о {self.product_reviewed}: {self.text[:20]}...'
 
-
     def delete(self, using=None, keep_parents=False):
         self.product_reviewed.reviews_count -= 1
-        self.product_reviewed.save()    # TODO почему-то не работает.
+        self.product_reviewed.save()  # TODO почему-то не работает.
         super(ProductReview, self).delete()
 
 
-
-
 spec_types = [('weight', 'Масса'),
-                ('volume', 'Объем'),
-                ('items', 'Штук')
+              ('volume', 'Объем'),
+              ('items', 'Штук')
               ]
 
 
@@ -123,7 +119,7 @@ class Product(models.Model):
         self.save()
 
     def getDescription(self):
-        return f'{self.desc[:10]}...'
+        return f'{self.desc[:30]}...'
 
     def getFullDescription(self):
         return self.desc
@@ -137,13 +133,48 @@ class Cart(models.Model):
         return f'Корзина пользователя {self.cartUser}'
 
     def add_product(self, product_id, count):
+        # 1. Продукт уже есть в корзине. Добавляем нужное количество
         if self.products.filter(id=product_id).exists():
-            Product.objects.get(id=product_id).add_to_cart(count)
+            product = Product.objects.get(id=product_id)
+            product.add_to_cart(count)
+
+        # Продукта нет в корзине. Добавляем нужное количество
         else:
             product = Product.objects.get(id=product_id)
             product.add_to_cart(count)
             self.products.add(product)
 
-
     def delete_product(self, product_id):
         pass
+
+
+delivery_types = [('basic_delivery', 'Доставка'),
+                  ('express_delivery', 'Экспресс-доставка'),
+                  ]
+
+payment_types = [('card_online', 'Онлайн картой'),
+                 ('any_account', 'Онлайн со случайного чужого счёта'),
+                 ]
+
+statuses = [('not_paid', 'Не оплачен'),
+            ('paid', 'Оплачен'),
+            ('pay_error', 'Ошибка оплаты'),
+            ]
+
+
+class Order(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    creationDate = models.DateTimeField(auto_now_add=True)
+    # Маска подстановки - +7() ___ - __ - __, храниться должно в виде 10 цифр без кода страны
+    phone = models.CharField(max_length=20, help_text='Номер телефона', blank=True)  # TODO валидация
+    delivery_type = models.CharField(choices=delivery_types, max_length=100, blank=True)
+    city = models.CharField(max_length=100, help_text='Город доставки', blank=True)
+    address = models.CharField(max_length=500, help_text='Адрес доставки', blank=True)
+    payment_types = models.CharField(choices=payment_types, max_length=100, blank=True)
+    status = models.CharField(choices=statuses, max_length=100, blank=True)
+    total_cost = models.FloatField(default=0, help_text='Общая стоимость товаров в заказе', blank=True)
+    products = models.ManyToManyField(Product, blank=True)
+
+    def __str__(self):
+        return f'Заказ {self.user.username} на {self.total_cost}'
+

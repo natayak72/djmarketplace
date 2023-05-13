@@ -8,7 +8,7 @@ from django.views.generic import ListView
 from django.http import JsonResponse
 from django.templatetags.static import static
 from .forms import ReviewCreateForm
-from .models import Product, ProductReview, Cart, CategoryProduct
+from .models import Product, ProductReview, Cart, CategoryProduct, Order
 
 
 # Create your views here.
@@ -130,12 +130,15 @@ def basket_view(request):
 
         # [0] - сам объект [1] - bool: создан объект (true) или взят уже существующий (false)
         cart = Cart.objects.get_or_create(cartUser=request.user)[0]
+        x = 1
         cart.add_product(product.id, count)
 
-        res = get_product_card(product=product)
+        x = 1
+
+        res = [get_product_card(product) for product in cart.products.all()]
 
         return JsonResponse(res, safe=False)
-    else:
+    elif request.method == 'GET':
         pass
         """ Список товаров в корзине. """
         products_in_cart = [{
@@ -143,10 +146,27 @@ def basket_view(request):
             'images': get_product_images_list(product),
             'title': product.title,
             'price': product.price,
-            'count': product.count
+            'count': product.count,
+            'description': product.getDescription()
         } for product in Cart.objects.get(cartUser=request.user).products.all()]
         return JsonResponse(products_in_cart, safe=False)
+    elif request.method == 'DELETE':
+        params = json.loads(request.body.decode('utf-8'))
+        count = params.get('count')
+        product = Product.objects.get(pk=params.get('id'))
+        cart = Cart.objects.get(cartUser=request.user)
 
+        # 1. Уменьшить число count
+        if count >= product.count:
+            product.count = 0
+            product.save()
+            cart.products.remove(product)
+        else:
+            product.count -= count
+            product.save()
+
+        res = [get_product_card(product) for product in cart.products.all()]
+        return JsonResponse(res, safe=False)
 
 def product_reviews_view(request, product_id):
     if request.method == 'POST':
@@ -176,17 +196,31 @@ def product_reviews_view(request, product_id):
                 'text': review.text,
                 'rate': review.rate
             } for review in ProductReview.objects.filter(product_reviewed=Product.objects.get(id=product_id))]
-            return JsonResponse(reviews, safe=False)
+
+            res = {
+                'reviews': reviews,
+                'errors': None
+            }
+
+            return JsonResponse(res, safe=False)
         else:
-            # На фронтенде нет механизма отображения информации о неправильно введённом поле.
-            # Поэтому просто возвращаем старые отзывы, без изменений.
+            errors = []
+            for s in review_form.errors:
+                errors.append({s: review_form.errors[s]})
             reviews = [{
                 'author': review.author,
                 'email': review.email,
                 'text': review.text,
                 'rate': review.rate
-            } for review in ProductReview.objects.all()]
-            return JsonResponse(reviews, safe=False)
+            } for review in ProductReview.objects.filter(product_reviewed=Product.objects.get(id=product_id))]
+
+            res = {
+                'reviews': reviews,
+                'errors': errors,
+                'cleaned_data': review_form.cleaned_data
+            }
+
+            return JsonResponse(res, safe=False)
 
 
 def get_sorted_products(sort_type, sort, products_list):
@@ -260,8 +294,6 @@ def catalog_view(request):
                 if 'minPrice' in key or 'maxPrice' in key:
                     products_filter[key.split('[')[1].split(']')[0]] = float(value)
                 elif 'freeDelivery' in key or 'available' in key:
-                    # products_filter[key.split('[')[1].split(']')[0]] = False if value == 'false' else True
-                    x = 1
                     if value == 'false':
                         products_filter[key.split('[')[1].split(']')[0]] = False
                     else:
@@ -305,3 +337,32 @@ def catalog_view(request):
         res = {'currentPage': current_page, 'lastPage': last_page, 'items': sorted_list}
 
         return JsonResponse(res, safe=False)
+
+
+def orders_view(request):
+    if request.method == 'POST':
+        data = json.loads(request.body.decode('utf-8'))
+        x = 1
+
+        # Создать заказ
+        # Заполнить:
+        # 1. Пользователя
+        # 2. Товары
+        # 3. Общую стоимость продуктов
+
+        # TODO ПОЧЕМУ-ТО СОЗДАЁТСЯ ДВА ЗАКАЗА. ПОПРОБОВАТЬ НЕ ФОРЕЙГН KEY НА ПОЛЬЗОВАТЕЛЯ, А ID КАК INTEGERFIELD
+        new_order = Order.objects.create(user=request.user)
+
+        new_product = Product.objects.create(title='test', slug='test')
+        x = 1
+        for product in data:
+            x = 1
+            product_to_add_id = product.get('id')
+            product_to_add = Product.objects.get(pk=product_to_add_id)
+            new_order.products.add(product_to_add)
+            new_order.total_cost += product_to_add.price * product_to_add.count
+            # new_order.save()
+
+
+        x = 1
+
