@@ -9,6 +9,7 @@ from django.contrib.auth.models import User
 class CategoryProduct(models.Model):
     title = models.CharField(max_length=100)
     slug = models.SlugField(unique=True, blank=True, null=True)
+    subcategory = models.ManyToManyField('CategoryProduct', blank=True)
 
     def __str__(self):
         return self.title
@@ -20,6 +21,7 @@ class Sale(models.Model):
     salePrice = models.IntegerField(default=0)
     dateFrom = models.DateTimeField(auto_now_add=True)
     dateTo = models.DateTimeField(auto_now_add=True)
+    slug = models.SlugField(unique=True, blank=True, null=True)
 
     def __str__(self):
         return self.title
@@ -33,6 +35,8 @@ class Customer(models.Model):
     # 300 - ... - Уважаемый покупатель
     status = models.CharField(max_length=100, default='Покупатель')
     buy_summ = models.PositiveIntegerField(default=0)
+    phone = models.PositiveIntegerField(default=99999999999, blank=True)
+    avatar = models.FileField(upload_to='api/static/avatar', blank=True)
 
     def __str__(self):
         return self.customerUser.username
@@ -106,6 +110,7 @@ class Product(models.Model):
     available = models.BooleanField(default=True)
     reviews = models.ManyToManyField(ProductReview, blank=True)
     reviews_count = models.IntegerField(default=0, blank=True)
+    limited = models.BooleanField(default=False)
 
     def __str__(self):
         return self.title
@@ -177,4 +182,5 @@ class Order(models.Model):
 
     def __str__(self):
         return f'Заказ от {self.user} на {self.total_cost}'
+
 

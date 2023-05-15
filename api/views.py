@@ -3,12 +3,12 @@ import os.path
 import math
 
 from django.conf import settings
-from django.shortcuts import render
-from django.views.generic import ListView
+from django.contrib.auth import logout, authenticate, login
+from django.contrib.auth.models import User
 from django.http import JsonResponse
 from django.templatetags.static import static
 from .forms import ReviewCreateForm
-from .models import Product, ProductReview, Cart, CategoryProduct, Order
+from .models import Product, ProductReview, Cart, CategoryProduct, Order, Customer, Sale
 
 
 # Create your views here.
@@ -30,6 +30,17 @@ def get_product_images_list(product):
     } for img_name in products_images]
 
     return images
+
+
+def get_category_image(category):
+    category_slug = category.slug
+    img_static_dir = os.path.join(settings.STATIC_ROOT, 'img')
+    categories_img_dir = os.path.join(img_static_dir, 'categories')
+    for category_image in os.listdir(categories_img_dir):
+        if category_slug in category_image:
+            return static(f'img/categories/{category_image}')
+
+    return ''
 
 
 def get_product_card(product):
@@ -58,23 +69,35 @@ def get_product_card(product):
 
 
 def popular_products_view(request):
-    res = []
-
-    for product in Product.objects.all():
-        tmp = get_product_card(product)
-
-        res.append(tmp)
-
-    return JsonResponse(res, safe=False)
+    return JsonResponse([get_product_card(product) for product in Product.objects.order_by('-pk')[:8]], safe=False)
 
 
 def limited_products_view(request):
-    res = []
+    return JsonResponse([get_product_card(product) for product in Product.objects.filter(limited=True)[:16]],
+                        safe=False)
 
-    for product in Product.objects.all():
-        tmp = get_product_card(product)
-        res.append(tmp)
 
+def get_category_info(category):
+    subcategories = []
+
+    for subcategory in category.subcategory.all():
+        subcategories.append(get_category_info(subcategory))
+
+    return {
+        'id': category.id,
+        'title': category.title,
+        'image': get_category_image(category),
+        'subcategories': subcategories
+    }
+
+
+def categories_view(request):
+    res = [
+    ]
+
+    for category in CategoryProduct.objects.all():
+        category_info = get_category_info(category)
+        res.append(category_info)
     return JsonResponse(res, safe=False)
 
 
@@ -130,10 +153,7 @@ def basket_view(request):
 
         # [0] - сам объект [1] - bool: создан объект (true) или взят уже существующий (false)
         cart = Cart.objects.get_or_create(cartUser=request.user)[0]
-        x = 1
         cart.add_product(product.id, count)
-
-        x = 1
 
         res = [get_product_card(product) for product in cart.products.all()]
 
@@ -167,6 +187,7 @@ def basket_view(request):
 
         res = [get_product_card(product) for product in cart.products.all()]
         return JsonResponse(res, safe=False)
+
 
 def product_reviews_view(request, product_id):
     if request.method == 'POST':
@@ -315,7 +336,8 @@ def catalog_view(request):
             filtered_list = products_list.filter(price__gte=products_filter.get('minPrice'),
                                                  price__lt=products_filter.get('maxPrice'),
                                                  delivery__exact=products_filter.get('freeDelivery'),
-                                                 available__exact=products_filter.get('available'))
+                                                 available__exact=products_filter.get('available')
+                                                 )
         else:
             filtered_list = products_list.filter(price__gte=products_filter.get('minPrice'),
                                                  price__lt=products_filter.get('maxPrice'),
@@ -355,20 +377,25 @@ def orders_view(request):
             new_order.save()
         return JsonResponse({'orderId': new_order.pk})
 
+    elif request.method == 'GET':
+        return JsonResponse([prepare_json_order(order) for order in Order.objects.filter(user=request.user)],
+                            safe=False)
+
+
+def prepare_json_order(order):
+    return {'id': order.id,
+            'createdAt': order.creationDate,
+            'fullName': order.user.username,
+            'email': order.user.email,
+            'totalCost': order.total_cost,
+            'products': [get_product_card(product) for product in order.products.all()]}
+
 
 def specific_order_view(request, order_id):
     print('specific_order_view')
-    x = 1
     if request.method == 'GET':
         order = Order.objects.get(pk=order_id)
-        res = {'id': order.id,
-               'createdAt': order.creationDate,
-               'fullName': order.user.username,
-               'email': order.user.email,
-               'totalCost': order.total_cost,
-               'products': [get_product_card(product) for product in order.products.all()]}
-
-        x = 1
+        res = prepare_json_order(order)
 
         return JsonResponse(res, safe=False)
 
@@ -396,3 +423,112 @@ def specific_order_view(request, order_id):
 def payment_view(request, order_id):
     if request.method == 'POST':
         return JsonResponse({}, safe=False)
+
+
+def profile_view(request):
+    if request.method == 'GET':
+        customer = Customer.objects.get(customerUser=request.user)
+        full_name = customer.customerUser.username
+        email = customer.customerUser.email
+        phone = customer.phone
+        avatar = {'src': customer.avatar.path, 'alt': 'Аватар'}
+
+        res = {'fullName': full_name,
+               'email': email,
+               'phone': phone,
+               'avatar': avatar}
+
+        return JsonResponse(res, safe=False)
+
+
+def avatar_view(request):
+    customer = Customer.objects.get(customerUser=request.user)
+    if request.FILES:
+        for filename, file in request.FILES.items():
+            if file.size < 2 * 1024 * 1024:
+                pass
+                customer.avatar = file
+                customer.save()
+
+        return JsonResponse({'src': customer.avatar.path, 'alt': 'Аватар'}, safe=False)
+
+
+def password_view(request):
+    params = json.loads(request.body.decode('utf-8'))
+    # Поменять пароль у пользователя
+    # Где новый пароль?
+
+
+def get_sale_image(sale):
+    sale_slug = sale.slug
+    img_static_dir = os.path.join(settings.STATIC_ROOT, 'img')
+    sales_img_dir = os.path.join(img_static_dir, 'sales')
+    for sale_image in os.listdir(sales_img_dir):
+        if sale_slug in sale_image:
+            return static(f'img/sales/{sale_image}')
+
+    return ''
+
+
+def sales_view(request):
+    # 1. Получить все скидки, выбрать скидки нужной страницы
+    current_page = int(request.GET.get('currentPage'))
+    limit = 10  # 10 скидок на странице
+    start = (current_page - 1) * limit
+    end = start + limit
+
+    filtered_list = Sale.objects.all()[start:end]
+
+    # 2. Посчитать последнюю страницу
+    last_page = math.ceil(len(filtered_list) / limit)
+
+    # 3. отправить
+    res = {
+        'items': [],
+        'current_page': current_page,
+        'last_page': last_page
+    }
+
+    for sale in filtered_list:
+        res['items'].append({
+            'id': sale.product.pk,
+            'price': sale.product.price,
+            'salePrice': sale.salePrice,
+            'dateFrom': sale.dateFrom,
+            'dateTo': sale.dateTo,
+            'title': sale.title,
+            'images': [{'src': get_sale_image(sale), 'alt': 'Фотография скидки'}]
+        })
+
+    return JsonResponse(res, safe=False)
+
+
+def sign_out_view(request):
+    logout(request)
+
+
+def sign_in_view(request):
+    params = json.loads(request.body.decode('utf-8'))
+    username = params.get('username')
+    password = params.get('password')
+    user = authenticate(request, username=username, password=password)
+
+    if user is not None:
+        login(request, user)
+
+    return JsonResponse({}, safe=True)
+
+
+def sign_up_view(request):
+    params = json.loads(request.body.decode('utf-8'))
+    name = params.get('name')
+    username = params.get('username')
+    password = params.get('password')
+
+    user = User.objects.create_user(username=username, password=password)
+    user.save()
+
+    login(request, user)
+
+    return JsonResponse({}, safe=True)
+
