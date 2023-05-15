@@ -362,7 +362,6 @@ def catalog_view(request):
 
 
 def orders_view(request):
-    print('orders_view')
     if request.method == 'POST':
         data = json.loads(request.body.decode('utf-8'))
 
@@ -376,7 +375,6 @@ def orders_view(request):
 
             new_order.save()
         return JsonResponse({'orderId': new_order.pk})
-
     elif request.method == 'GET':
         return JsonResponse([prepare_json_order(order) for order in Order.objects.filter(user=request.user)],
                             safe=False)
@@ -392,13 +390,11 @@ def prepare_json_order(order):
 
 
 def specific_order_view(request, order_id):
-    print('specific_order_view')
     if request.method == 'GET':
         order = Order.objects.get(pk=order_id)
         res = prepare_json_order(order)
 
         return JsonResponse(res, safe=False)
-
     elif request.method == 'POST':
         # Сохранить заказ
         data = json.loads(request.body.decode('utf-8'))
@@ -409,6 +405,12 @@ def specific_order_view(request, order_id):
             order.phone = int(data.get('phone'))
         except ValueError:
             order.phone = 9999999999
+
+        import re
+
+        validate_phone_number_pattern = "^\\+?\\d{1,4}?[-.\\s]?\\(?\\d{1,3}?\\)?[-.\\s]?\\d{1,4}[-.\\s]?\\d{1,4}[-.\\s]?\\d{1,9}$"
+
+        order.phone = re.match(validate_phone_number_pattern, "+7 (999) 999-99-99")
 
         order.delivery_type = data.get('deliveryType')
         order.city = data.get('city')
@@ -422,7 +424,18 @@ def specific_order_view(request, order_id):
 
 def payment_view(request, order_id):
     if request.method == 'POST':
-        return JsonResponse({}, safe=False)
+        data = json.loads(request.body.decode('utf-8'))
+        order = Order.objects.get(pk=order_id)
+
+        try:
+            number = int(data.get('number'))
+        except ValueError:
+            number = None
+
+        if number % 2 == 0 and str(number).endswith('0'):
+            return JsonResponse({}, safe=False)
+        else:
+            return JsonResponse({'error': 'Random error'}, safe=False)
 
 
 def profile_view(request):
@@ -440,6 +453,26 @@ def profile_view(request):
 
         return JsonResponse(res, safe=False)
 
+    elif request.method == 'POST':
+        data = json.loads(request.body.decode('utf-8'))
+
+        customer_user = Customer.objects.get(customerUser=request.user)
+
+        customer_user.customerUser.username = data.get('fullName')
+        customer_user.customerUser.email = data.get('email')
+        customer_user.phone = data.get('phone')
+
+        customer_user.save()
+
+        return JsonResponse({
+            'fullName': customer_user.customerUser.username,
+            'email': customer_user.customerUser.email,
+            'phone': customer_user.phone,
+            'avatar': {'src': data.get('avatar').get('src'),
+                       'alt': data.get('avatar').get('alt')}
+        }, safe=False)
+
+
 
 def avatar_view(request):
     customer = Customer.objects.get(customerUser=request.user)
@@ -455,8 +488,10 @@ def avatar_view(request):
 
 def password_view(request):
     params = json.loads(request.body.decode('utf-8'))
-    # Поменять пароль у пользователя
-    # Где новый пароль?
+    new_password = params.get('password')
+    user = User.objects.get(username=request.user.username)
+    user.set_password(new_password)
+    user.save()
 
 
 def get_sale_image(sale):
@@ -531,4 +566,16 @@ def sign_up_view(request):
     login(request, user)
 
     return JsonResponse({}, safe=True)
+
+
+def banners_view(request):
+    return JsonResponse([get_product_card(product) for product in Product.objects.all()], safe=False)
+
+
+def tags_view(request):
+    category_id = request.GET.get('category')
+    category = CategoryProduct.objects.get(pk=category_id)
+    return JsonResponse({'id': category.id, 'name': category.title}, safe=False)
+
+
 

@@ -9,6 +9,7 @@ urlpatterns = [
     path('product/<int:id>/', product_detail_view),
     path('product/<int:product_id>/reviews/', product_reviews_view),
     path('catalog/', catalog_view),
+    path('banners/', banners_view),
     path('categories/', categories_view),
     path('basket/', basket_view),
     path('orders/<int:order_id>/', specific_order_view),
@@ -20,5 +21,6 @@ urlpatterns = [
     path('sales/', sales_view),
     path('sign-out/', sign_out_view),
     path('sign-in/', sign_in_view),
-    path('sign-up/', sign_up_view)
+    path('sign-up/', sign_up_view),
+    path('tags/', tags_view)
 ]
